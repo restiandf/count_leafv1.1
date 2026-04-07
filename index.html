@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="id">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>YOLOv8 Tutup Daun</title>
+        <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+        <style>
+            :root {
+                --primary: #ff4757;
+                --bg: #0f172a;
+                --card: #1e293b;
+                --text: #f8fafc;
+            }
+            body {
+                font-family: sans-serif;
+                background: var(--bg);
+                color: var(--text);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 20px;
+                margin: 0;
+            }
+            .container {
+                background: var(--card);
+                padding: 1.5rem;
+                border-radius: 20px;
+                width: 100%;
+                max-width: 700px;
+                text-align: center;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            }
+            h2 {
+                margin-top: 0;
+                color: #fff;
+                font-size: 1.5rem;
+            }
+            #wrapper {
+                position: relative;
+                margin: 15px 0;
+                background: #000;
+                border-radius: 12px;
+                overflow: hidden;
+                line-height: 0;
+                border: 2px solid #334155;
+            }
+            video,
+            img {
+                display: none;
+            }
+            canvas {
+                width: 100%;
+                height: auto;
+                display: block;
+            }
+            .btn-group {
+                display: flex;
+                gap: 10px;
+                justify-content: center;
+                margin-bottom: 15px;
+                flex-wrap: wrap;
+            }
+
+            button,
+            .upload-label {
+                background: #fff;
+                color: #000;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 14px;
+                transition: all 0.2s;
+            }
+            button:hover,
+            .upload-label:hover {
+                opacity: 0.9;
+                transform: translateY(-1px);
+            }
+            button:disabled {
+                background: #475569;
+                color: #94a3b8;
+                cursor: not-allowed;
+                transform: none;
+            }
+
+            .upload-label {
+                background: #e2e8f0;
+                display: inline-block;
+            }
+            #stopBtn {
+                background: var(--primary);
+                color: #fff;
+            }
+
+            .controls {
+                background: rgba(255, 255, 255, 0.05);
+                padding: 15px;
+                border-radius: 12px;
+                margin-top: 10px;
+            }
+            .status-bar {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 10px;
+                font-size: 13px;
+                opacity: 0.8;
+                padding: 0 5px;
+            }
+            #count-badge {
+                background: var(--primary);
+                color: white;
+                padding: 2px 8px;
+                border-radius: 10px;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h2>🔍 Tutup Daun</h2>
+
+            <div class="status-bar">
+                <span id="status">⏳ Memuat Model...</span>
+                <span>Terdeteksi: <span id="count-badge">0</span></span>
+            </div>
+
+            <div class="btn-group">
+                <button id="startBtn" disabled>📷 Kamera Live</button>
+                <label class="upload-label">
+                    📁 Pilih Gambar
+                    <input
+                        type="file"
+                        id="fileInput"
+                        accept="image/*"
+                        style="display: none"
+                    />
+                </label>
+                <button id="stopBtn" style="display: none">Stop</button>
+            </div>
+
+            <div id="wrapper">
+                <video id="video" playsinline autoplay muted></video>
+                <img id="imageDisplay" />
+                <canvas id="canvas"></canvas>
+            </div>
+
+            <div class="controls">
+                Sensitivitas: <span id="thresh-val">0.50</span><br />
+                <input
+                    type="range"
+                    id="thresh"
+                    min="1"
+                    max="99"
+                    value="50"
+                    style="width: 100%; cursor: pointer"
+                />
+            </div>
+        </div>
+
+        <script>
+            // --- KONFIGURASI ---
+            const MODEL_PATH = "best.onnx";
+            const INPUT_SIZE = 640;
+            const DETECT_COLOR = "#ff4757";
+            // -------------------
+
+            const video = document.getElementById("video");
+            const canvas = document.getElementById("canvas");
+            const ctx = canvas.getContext("2d");
+            const imgDisp = document.getElementById("imageDisplay");
+            const fileInput = document.getElementById("fileInput");
+            const startBtn = document.getElementById("startBtn");
+            const stopBtn = document.getElementById("stopBtn");
+            const status = document.getElementById("status");
+            const countBadge = document.getElementById("count-badge");
+
+            let session = null;
+            let mode = "idle";
+
+            // 1. Inisialisasi ONNX Runtime
+            async function init() {
+                try {
+                    ort.env.wasm.numThreads = 2;
+                    session = await ort.InferenceSession.create(MODEL_PATH, {
+                        executionProviders: ["wasm"],
+                    });
+                    status.innerText = "✅ AI Siap";
+                    startBtn.disabled = false;
+                } catch (e) {
+                    status.innerText = "❌ Gagal Load Model";
+                    console.error(e);
+                }
+            }
+
+            async function runInference(source) {
+                const threshold = document.getElementById("thresh").value / 100;
+
+                const tempCanvas = document.createElement("canvas");
+                tempCanvas.width = INPUT_SIZE;
+                tempCanvas.height = INPUT_SIZE;
+                const tctx = tempCanvas.getContext("2d");
+                tctx.drawImage(source, 0, 0, INPUT_SIZE, INPUT_SIZE);
+
+                const imageData = tctx.getImageData(
+                    0,
+                    0,
+                    INPUT_SIZE,
+                    INPUT_SIZE,
+                );
+                const input = new Float32Array(3 * INPUT_SIZE * INPUT_SIZE);
+
+                for (let i = 0; i < INPUT_SIZE * INPUT_SIZE; i++) {
+                    input[i] = imageData.data[i * 4] / 255; // R
+                    input[i + INPUT_SIZE * INPUT_SIZE] =
+                        imageData.data[i * 4 + 1] / 255; // G
+                    input[i + 2 * INPUT_SIZE * INPUT_SIZE] =
+                        imageData.data[i * 4 + 2] / 255; // B
+                }
+
+                const tensor = new ort.Tensor("float32", input, [
+                    1,
+                    3,
+                    INPUT_SIZE,
+                    INPUT_SIZE,
+                ]);
+                const results = await session.run({ images: tensor });
+                const output = results[session.outputNames[0]];
+
+                return processOutput(output.data, output.dims, threshold);
+            }
+
+            function processOutput(data, dims, threshold) {
+                const boxes = [];
+                const [_, numProps, numAnchors] = dims;
+                const sX = canvas.width / INPUT_SIZE;
+                const sY = canvas.height / INPUT_SIZE;
+
+                for (let i = 0; i < numAnchors; i++) {
+                    let maxConf = 0;
+                    for (let c = 4; c < numProps; c++) {
+                        if (data[c * numAnchors + i] > maxConf) {
+                            maxConf = data[c * numAnchors + i];
+                        }
+                    }
+
+                    if (maxConf > threshold) {
+                        const cx = data[0 * numAnchors + i];
+                        const cy = data[1 * numAnchors + i];
+                        const w = data[2 * numAnchors + i];
+                        const h = data[3 * numAnchors + i];
+
+                        boxes.push({
+                            x: (cx - w / 2) * sX,
+                            y: (cy - h / 2) * sY,
+                            w: w * sX,
+                            h: h * sY,
+                            conf: maxConf,
+                        });
+                    }
+                }
+                return nms(boxes, 0.45);
+            }
+
+            function draw(boxes, source) {
+                ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+
+                // Atur gaya teks dan garis
+                ctx.strokeStyle = DETECT_COLOR;
+                ctx.lineWidth = Math.max(2, canvas.width / 300);
+                ctx.fillStyle = DETECT_COLOR;
+
+                const fontSize = Math.max(12, canvas.width / 50);
+                ctx.font = `bold ${fontSize}px sans-serif`;
+                ctx.textBaseline = "top";
+
+                boxes.forEach((b, index) => {
+                    ctx.strokeRect(b.x, b.y, b.w, b.h);
+
+                    const txt = (index + 1).toString();
+                    const txtW = ctx.measureText(txt).width;
+                    const pad = fontSize * 0.2;
+
+                    ctx.fillRect(b.x, b.y, txtW + pad * 2, fontSize + pad * 2);
+
+                    ctx.fillStyle = "#ffffff";
+                    ctx.fillText(txt, b.x + pad, b.y + pad);
+
+                    ctx.fillStyle = DETECT_COLOR;
+                });
+
+                countBadge.innerText = boxes.length;
+            }
+
+            async function startLive() {
+                try {
+                    mode = "live";
+                    imgDisp.style.display = "none";
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: "environment",
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 },
+                        },
+                    });
+                    video.srcObject = stream;
+                    video.onloadedmetadata = () => {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        stopBtn.style.display = "inline-block";
+                        startBtn.disabled = true;
+                        fileInput.parentElement.style.display = "none";
+                        status.innerText = "🟢 Kamera Live";
+                        tick(); // Mulai loop deteksi
+                    };
+                } catch (e) {
+                    status.innerText = "❌ Akses Kamera Ditolak";
+                    console.error(e);
+                }
+            }
+
+            async function tick() {
+                if (mode !== "live") return;
+                const boxes = await runInference(video);
+                draw(boxes, video);
+                requestAnimationFrame(tick);
+            }
+
+            // --- HANDLER GALERI (UPLOAD GAMBAR) ---
+            fileInput.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                mode = "image";
+                status.innerText = "⏳ Memproses Gambar...";
+
+                // Matikan kamera jika sedang jalan
+                if (video.srcObject)
+                    video.srcObject.getTracks().forEach((t) => t.stop());
+                stopBtn.style.display = "none";
+                startBtn.disabled = false;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    imgDisp.src = event.target.result;
+                    imgDisp.onload = async () => {
+                        // Sesuaikan ukuran canvas dengan gambar asli
+                        canvas.width = imgDisp.naturalWidth;
+                        canvas.height = imgDisp.naturalHeight;
+                        // Jalankan deteksi satu kali
+                        const boxes = await runInference(imgDisp);
+                        draw(boxes, imgDisp);
+                        status.innerText = "✅ Gambar Terdeteksi";
+                    };
+                };
+                reader.readAsDataURL(file);
+            };
+
+            // Handler Tombol Stop Kamera
+            stopBtn.onclick = () => {
+                mode = "idle";
+                if (video.srcObject)
+                    video.srcObject.getTracks().forEach((t) => t.stop());
+                stopBtn.style.display = "none";
+                startBtn.disabled = false;
+                fileInput.parentElement.style.display = "inline-block"; // Tampilkan kembali tombol galeri
+                ctx.clearRect(0, 0, canvas.width, canvas.height); // Bersihkan canvas
+                status.innerText = "✅ AI Siap";
+                countBadge.innerText = "0";
+            };
+
+            // Event Listener Lainnya
+            startBtn.onclick = startLive;
+            document.getElementById("thresh").oninput = (e) => {
+                const val = (e.target.value / 100).toFixed(2);
+                document.getElementById("thresh-val").innerText = val;
+                // Jika di mode gambar, deteksi ulang saat slider digeser
+                if (mode === "image" && imgDisp.src) {
+                    runInference(imgDisp).then((boxes) => draw(boxes, imgDisp));
+                }
+            };
+
+            // Utilitas: NMS (Non-Maximum Suppression) agar kotak tidak tumpuk-tumpuk
+            function nms(boxes, iouThresh) {
+                boxes.sort((a, b) => b.conf - a.conf); // Urutkan dari conf tertinggi
+                const res = [];
+                const used = new Set();
+                for (let i = 0; i < boxes.length; i++) {
+                    if (used.has(i)) continue;
+                    res.push(boxes[i]);
+                    for (let j = i + 1; j < boxes.length; j++) {
+                        if (iou(boxes[i], boxes[j]) > iouThresh) used.add(j);
+                    }
+                }
+                return res;
+            }
+            // Hitung Intersection over Union (IoU) antara dua kotak
+            function iou(a, b) {
+                const x1 = Math.max(a.x, b.x),
+                    y1 = Math.max(a.y, b.y);
+                const x2 = Math.min(a.x + a.w, b.x + b.w),
+                    y2 = Math.min(a.y + a.h, b.y + b.h);
+                const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+                return inter / (a.w * a.h + b.w * b.h - inter);
+            }
+
+            // Jalankan inisialisasi saat halaman dimuat
+            init();
+        </script>
+    </body>
+</html>
