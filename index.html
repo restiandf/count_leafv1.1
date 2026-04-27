@@ -128,7 +128,16 @@
       </div>
 
       <div class="btn-group">
-        <button id="startBtn" disabled>📷 Kamera Live</button>
+        <label class="upload-label">
+          📷 Ambil Foto
+          <input
+            type="file"
+            id="cameraInput"
+            accept="image/*"
+            capture="environment"
+            style="display: none"
+          />
+        </label>
         <label class="upload-label">
           📁 Pilih Gambar
           <input
@@ -142,7 +151,6 @@
       </div>
 
       <div id="wrapper">
-        <video id="video" playsinline autoplay muted></video>
         <img id="imageDisplay" />
         <canvas id="canvas"></canvas>
       </div>
@@ -167,12 +175,11 @@
       const DETECT_COLOR = "#ff4757";
       // -------------------
 
-      const video = document.getElementById("video");
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
       const imgDisp = document.getElementById("imageDisplay");
       const fileInput = document.getElementById("fileInput");
-      const startBtn = document.getElementById("startBtn");
+      const cameraInput = document.getElementById("cameraInput");
       const stopBtn = document.getElementById("stopBtn");
       const status = document.getElementById("status");
       const countBadge = document.getElementById("count-badge");
@@ -188,7 +195,6 @@
             executionProviders: ["wasm"],
           });
           status.innerText = "✅ AI Siap";
-          startBtn.disabled = false;
         } catch (e) {
           status.innerText = "❌ Gagal Load Model";
           console.error(e);
@@ -288,86 +294,55 @@
         countBadge.innerText = boxes.length;
       }
 
-      async function startLive() {
-        try {
-          mode = "live";
-          imgDisp.style.display = "none";
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: "environment",
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
-          });
-          video.srcObject = stream;
-          video.onloadedmetadata = () => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            stopBtn.style.display = "inline-block";
-            startBtn.disabled = true;
-            fileInput.parentElement.style.display = "none";
-            status.innerText = "🟢 Kamera Live";
-            tick(); // Mulai loop deteksi
-          };
-        } catch (e) {
-          status.innerText = "❌ Akses Kamera Ditolak";
-          console.error(e);
-        }
-      }
-
-      async function tick() {
-        if (mode !== "live") return;
-        const boxes = await runInference(video);
-        draw(boxes, video);
-        requestAnimationFrame(tick);
-      }
-
-      // --- HANDLER GALERI (UPLOAD GAMBAR) ---
-      fileInput.onchange = (e) => {
-        const file = e.target.files[0];
+      function processImageFile(file) {
         if (!file) return;
         mode = "image";
         status.innerText = "⏳ Memproses Gambar...";
 
-        // Matikan kamera jika sedang jalan
-        if (video.srcObject)
-          video.srcObject.getTracks().forEach((t) => t.stop());
         stopBtn.style.display = "inline-block";
-        startBtn.disabled = false;
         fileInput.parentElement.style.display = "none";
+        cameraInput.parentElement.style.display = "none";
 
         const reader = new FileReader();
         reader.onload = (event) => {
           imgDisp.src = event.target.result;
           imgDisp.onload = async () => {
-            // Sesuaikan ukuran canvas dengan gambar asli
             canvas.width = imgDisp.naturalWidth;
             canvas.height = imgDisp.naturalHeight;
-            // Jalankan deteksi satu kali
             const boxes = await runInference(imgDisp);
             draw(boxes, imgDisp);
             status.innerText = "✅ Gambar Terdeteksi";
           };
         };
         reader.readAsDataURL(file);
+      }
+
+      // --- HANDLER GALERI (UPLOAD GAMBAR) ---
+      fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        processImageFile(file);
       };
 
-      // Handler Tombol Stop Kamera/Gambar
+      cameraInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        processImageFile(file);
+      };
+
+      // Handler Tombol Stop
       stopBtn.onclick = () => {
         mode = "idle";
-        if (video.srcObject)
-          video.srcObject.getTracks().forEach((t) => t.stop());
         stopBtn.style.display = "none";
-        startBtn.disabled = false;
-        fileInput.parentElement.style.display = "inline-block"; // Tampilkan kembali tombol galeri
-        imgDisp.style.display = "none"; // Sembunyikan gambar
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // Bersihkan canvas
+        fileInput.parentElement.style.display = "inline-block";
+        cameraInput.parentElement.style.display = "inline-block";
+        imgDisp.style.display = "none";
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         status.innerText = "✅ AI Siap";
         countBadge.innerText = "0";
       };
 
       // Event Listener Lainnya
-      startBtn.onclick = startLive;
       document.getElementById("thresh").oninput = (e) => {
         const val = (e.target.value / 100).toFixed(2);
         document.getElementById("thresh-val").innerText = val;
