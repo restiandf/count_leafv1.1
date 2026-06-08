@@ -326,14 +326,20 @@
         ctx.font = `bold ${fontSize}px sans-serif`;
         ctx.textBaseline = "top";
 
-        boxes.forEach((b, index) => {
+        // Penomoran label kotak mulai dari 1 per kelas (bukan urutan global).
+        const perClassCounter = CLASS_NAMES.map(() => 0);
+
+        boxes.forEach((b) => {
           const color = CLASS_COLORS[b.classId] || CLASS_COLORS[0];
           ctx.strokeStyle = color;
           ctx.fillStyle = color;
 
           ctx.strokeRect(b.x, b.y, b.w, b.h);
 
-          const txt = (index + 1).toString();
+          const cls = Number.isFinite(b.classId) ? b.classId : 0;
+          const safeCls = cls >= 0 && cls < perClassCounter.length ? cls : 0;
+
+          const txt = (++perClassCounter[safeCls]).toString();
           const txtW = ctx.measureText(txt).width;
           const pad = fontSize * 0.2;
 
