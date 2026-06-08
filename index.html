@@ -116,6 +116,29 @@
         border-radius: 10px;
         font-weight: bold;
       }
+      .legend {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+        font-size: 12px;
+        margin-bottom: 10px;
+        opacity: 0.9;
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        flex-shrink: 0;
+      }
+      .class-count {
+        font-weight: bold;
+      }
     </style>
   </head>
   <body>
@@ -124,8 +147,10 @@
 
       <div class="status-bar">
         <span id="status">⏳ Memuat Model...</span>
-        <span>Terdeteksi: <span id="count-badge">0</span></span>
+        <span>Total: <span id="count-badge">0</span></span>
       </div>
+
+      <div class="legend" id="legend"></div>
 
       <div class="btn-group">
         <label class="upload-label">
@@ -170,9 +195,10 @@
 
     <script>
       // --- KONFIGURASI ---
-      const MODEL_PATH = "best.onnx";
+      const MODEL_PATH = "bestv1.onnx";
       const INPUT_SIZE = 640;
-      const DETECT_COLOR = "#ff4757";
+      const CLASS_NAMES = ["Tutup Daun", "Wiper"];
+      const CLASS_COLORS = ["#ff4757", "#2ed573"];
       // -------------------
 
       const canvas = document.getElementById("canvas");
@@ -183,9 +209,32 @@
       const stopBtn = document.getElementById("stopBtn");
       const status = document.getElementById("status");
       const countBadge = document.getElementById("count-badge");
+      const legendEl = document.getElementById("legend");
 
       let session = null;
       let mode = "idle";
+
+      function renderLegend() {
+        legendEl.innerHTML = CLASS_NAMES.map(
+          (name, i) =>
+            `<span class="legend-item">
+              <span class="legend-dot" style="background:${CLASS_COLORS[i]}"></span>
+              ${name}: <span class="class-count" id="count-class-${i}">0</span>
+            </span>`,
+        ).join("");
+      }
+
+      function updateCounts(boxes) {
+        const perClass = CLASS_NAMES.map(() => 0);
+        boxes.forEach((b) => perClass[b.classId]++);
+        countBadge.innerText = boxes.length;
+        perClass.forEach((n, i) => {
+          const el = document.getElementById(`count-class-${i}`);
+          if (el) el.innerText = n;
+        });
+      }
+
+      renderLegend();
 
       // 1. Inisialisasi ONNX Runtime
       async function init() {
@@ -240,9 +289,12 @@
 
         for (let i = 0; i < numAnchors; i++) {
           let maxConf = 0;
+          let classId = 0;
           for (let c = 4; c < numProps; c++) {
-            if (data[c * numAnchors + i] > maxConf) {
-              maxConf = data[c * numAnchors + i];
+            const conf = data[c * numAnchors + i];
+            if (conf > maxConf) {
+              maxConf = conf;
+              classId = c - 4;
             }
           }
 
@@ -258,6 +310,7 @@
               w: w * sX,
               h: h * sY,
               conf: maxConf,
+              classId,
             });
           }
         }
@@ -267,16 +320,17 @@
       function draw(boxes, source) {
         ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
 
-        // Atur gaya teks dan garis
-        ctx.strokeStyle = DETECT_COLOR;
         ctx.lineWidth = Math.max(2, canvas.width / 300);
-        ctx.fillStyle = DETECT_COLOR;
 
         const fontSize = Math.max(12, canvas.width / 50);
         ctx.font = `bold ${fontSize}px sans-serif`;
         ctx.textBaseline = "top";
 
         boxes.forEach((b, index) => {
+          const color = CLASS_COLORS[b.classId] || CLASS_COLORS[0];
+          ctx.strokeStyle = color;
+          ctx.fillStyle = color;
+
           ctx.strokeRect(b.x, b.y, b.w, b.h);
 
           const txt = (index + 1).toString();
@@ -287,11 +341,9 @@
 
           ctx.fillStyle = "#ffffff";
           ctx.fillText(txt, b.x + pad, b.y + pad);
-
-          ctx.fillStyle = DETECT_COLOR;
         });
 
-        countBadge.innerText = boxes.length;
+        updateCounts(boxes);
       }
 
       function processImageFile(file) {
@@ -339,7 +391,7 @@
         imgDisp.style.display = "none";
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         status.innerText = "✅ AI Siap";
-        countBadge.innerText = "0";
+        updateCounts([]);
       };
 
       // Event Listener Lainnya
