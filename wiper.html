@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BTechLens - Tutup Daun</title>
+    <title>BTechLens - Wiper</title>
     <link rel="icon" href="logo.png" type="image/png" />
     <script src="ort/ort.min.js"></script>
     <style>
@@ -188,8 +188,8 @@
       </h2>
 
       <div class="mode-switch">
-        <a href="index.html" class="mode-btn active">Tutup Daun</a>
-        <a href="wiper.html" class="mode-btn">Wiper</a>
+        <a href="index.html" class="mode-btn">Tutup Daun</a>
+        <a href="wiper.html" class="mode-btn active">Wiper</a>
       </div>
 
       <div class="status-bar">
@@ -242,10 +242,10 @@
 
     <script>
       // --- KONFIGURASI ---
-      const MODEL_PATH = "bestv1.onnx";
+      const MODEL_PATH = "bestwiper.onnx";
       const INPUT_SIZE = 640;
-      const CLASS_NAMES = ["Tutup Daun"];
-      const CLASS_COLORS = ["#22c55e"];
+      const CLASS_NAMES = ["Wiper"];
+      const CLASS_COLORS = ["#ff4757"];
       const ORT_WASM_PATH = "ort/";
       const ORT_WASM_FILE = ORT_WASM_PATH + "ort-wasm.wasm";
       const ORT_WASM_SIMD_FILE = ORT_WASM_PATH + "ort-wasm-simd.wasm";
