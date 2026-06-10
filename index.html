@@ -173,6 +173,19 @@
         background: var(--primary);
         color: #fff;
       }
+      .radio-group {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        align-items: center;
+        font-size: 13px;
+      }
+      .radio-group label {
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
     </style>
   </head>
   <body>
@@ -228,15 +241,17 @@
       </div>
 
       <div class="controls">
-        Sensitivitas: <span id="thresh-val">0.50</span><br />
-        <input
-          type="range"
-          id="thresh"
-          min="1"
-          max="99"
-          value="50"
-          style="width: 100%; cursor: pointer"
-        />
+        <div class="radio-group">
+          Tampilkan nomor:
+          <label>
+            <input type="radio" name="showNumbers" value="on" checked />
+            Ya
+          </label>
+          <label>
+            <input type="radio" name="showNumbers" value="off" />
+            Tidak
+          </label>
+        </div>
       </div>
     </div>
 
@@ -246,6 +261,7 @@
       const INPUT_SIZE = 640;
       const CLASS_NAMES = ["Tutup Daun"];
       const CLASS_COLORS = ["#22c55e"];
+      const DEFAULT_THRESHOLD = 0.5;
       const ORT_WASM_PATH = "ort/";
       const ORT_WASM_FILE = ORT_WASM_PATH + "ort-wasm.wasm";
       const ORT_WASM_SIMD_FILE = ORT_WASM_PATH + "ort-wasm-simd.wasm";
@@ -263,7 +279,7 @@
 
       let session = null;
       let mode = "idle";
-      let threshDebounceTimer = null;
+      let lastBoxes = [];
 
       const preprocessCanvas = document.createElement("canvas");
       preprocessCanvas.width = INPUT_SIZE;
@@ -294,6 +310,13 @@
       }
 
       renderLegend();
+
+      function shouldShowNumbers() {
+        const selected = document.querySelector(
+          'input[name="showNumbers"]:checked',
+        );
+        return selected?.value === "on";
+      }
 
       function formatOrtError(e) {
         if (!e) return "Unknown error";
@@ -362,7 +385,7 @@
       }
 
       async function runInference(source) {
-        const threshold = document.getElementById("thresh").value / 100;
+        const threshold = DEFAULT_THRESHOLD;
 
         preprocessCtx.drawImage(source, 0, 0, INPUT_SIZE, INPUT_SIZE);
         const imageData = preprocessCtx.getImageData(
@@ -430,6 +453,7 @@
       }
 
       function draw(boxes, source) {
+        lastBoxes = boxes;
         ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
 
         ctx.lineWidth = Math.max(1, canvas.width / 800);
@@ -448,17 +472,20 @@
 
           ctx.strokeRect(b.x, b.y, b.w, b.h);
 
-          const cls = Number.isFinite(b.classId) ? b.classId : 0;
-          const safeCls = cls >= 0 && cls < perClassCounter.length ? cls : 0;
+          if (shouldShowNumbers()) {
+            const cls = Number.isFinite(b.classId) ? b.classId : 0;
+            const safeCls =
+              cls >= 0 && cls < perClassCounter.length ? cls : 0;
 
-          const txt = (++perClassCounter[safeCls]).toString();
-          const txtW = ctx.measureText(txt).width;
-          const pad = fontSize * 0.2;
+            const txt = (++perClassCounter[safeCls]).toString();
+            const txtW = ctx.measureText(txt).width;
+            const pad = fontSize * 0.2;
 
-          ctx.fillRect(b.x, b.y, txtW + pad * 2, fontSize + pad * 2);
+            ctx.fillRect(b.x, b.y, txtW + pad * 2, fontSize + pad * 2);
 
-          ctx.fillStyle = "#ffffff";
-          ctx.fillText(txt, b.x + pad, b.y + pad);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText(txt, b.x + pad, b.y + pad);
+          }
         });
 
         updateCounts(boxes);
@@ -509,20 +536,17 @@
         imgDisp.style.display = "none";
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         status.innerText = "✅ AI Siap";
+        lastBoxes = [];
         updateCounts([]);
       };
 
-      // Event Listener Lainnya
-      document.getElementById("thresh").oninput = (e) => {
-        const val = (e.target.value / 100).toFixed(2);
-        document.getElementById("thresh-val").innerText = val;
-        if (mode === "image" && imgDisp.src) {
-          clearTimeout(threshDebounceTimer);
-          threshDebounceTimer = setTimeout(() => {
-            runInference(imgDisp).then((boxes) => draw(boxes, imgDisp));
-          }, 250);
-        }
-      };
+      document.querySelectorAll('input[name="showNumbers"]').forEach((radio) => {
+        radio.onchange = () => {
+          if (mode === "image" && imgDisp.src) {
+            draw(lastBoxes, imgDisp);
+          }
+        };
+      });
 
       // Utilitas: NMS (Non-Maximum Suppression) agar kotak tidak tumpuk-tumpuk
       function nms(boxes, iouThresh) {
