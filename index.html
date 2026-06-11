@@ -257,7 +257,7 @@
 
     <script>
       // --- KONFIGURASI ---
-      const MODEL_PATH = "bestv1.onnx";
+      const MODEL_PATH = "besttutupdaunv1.1.onnx";
       const INPUT_SIZE = 640;
       const CLASS_NAMES = ["Tutup Daun"];
       const CLASS_COLORS = ["#22c55e"];
@@ -474,8 +474,7 @@
 
           if (shouldShowNumbers()) {
             const cls = Number.isFinite(b.classId) ? b.classId : 0;
-            const safeCls =
-              cls >= 0 && cls < perClassCounter.length ? cls : 0;
+            const safeCls = cls >= 0 && cls < perClassCounter.length ? cls : 0;
 
             const txt = (++perClassCounter[safeCls]).toString();
             const txtW = ctx.measureText(txt).width;
@@ -540,13 +539,15 @@
         updateCounts([]);
       };
 
-      document.querySelectorAll('input[name="showNumbers"]').forEach((radio) => {
-        radio.onchange = () => {
-          if (mode === "image" && imgDisp.src) {
-            draw(lastBoxes, imgDisp);
-          }
-        };
-      });
+      document
+        .querySelectorAll('input[name="showNumbers"]')
+        .forEach((radio) => {
+          radio.onchange = () => {
+            if (mode === "image" && imgDisp.src) {
+              draw(lastBoxes, imgDisp);
+            }
+          };
+        });
 
       // Utilitas: NMS (Non-Maximum Suppression) agar kotak tidak tumpuk-tumpuk
       function nms(boxes, iouThresh) {
