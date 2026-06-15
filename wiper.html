@@ -186,6 +186,75 @@
         align-items: center;
         gap: 6px;
       }
+      #save-panel {
+        display: none;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 13px;
+      }
+      #save-panel .btn-group {
+        margin-bottom: 0;
+        margin-top: 10px;
+      }
+      #skipHistoryBtn {
+        background: #475569;
+        color: #fff;
+      }
+      .history-section {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: left;
+      }
+      .history-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 13px;
+      }
+      #history-summary {
+        font-size: 12px;
+        margin-bottom: 10px;
+        padding: 10px 12px;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 8px;
+        line-height: 1.5;
+      }
+      #history-summary strong {
+        color: #fff;
+      }
+      #resetHistoryBtn {
+        background: transparent;
+        color: #94a3b8;
+        padding: 4px 10px;
+        font-size: 12px;
+        border: 1px solid #475569;
+      }
+      #resetHistoryBtn:hover {
+        color: #fff;
+        border-color: var(--primary);
+      }
+      #history-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        max-height: 180px;
+        overflow-y: auto;
+        font-size: 12px;
+      }
+      #history-list li {
+        padding: 8px 10px;
+        margin-bottom: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+      }
+      #history-list .history-empty {
+        opacity: 0.6;
+        text-align: center;
+        background: none;
+      }
     </style>
   </head>
   <body>
@@ -206,7 +275,7 @@
       </div>
 
       <div class="status-bar">
-        <span id="status">⏳ Memuat Model v1.4...</span>
+        <span id="status">⏳ Memuat Model v1.5...</span>
         <span>Total: <span id="count-badge">0</span></span>
       </div>
 
@@ -252,12 +321,29 @@
             Tidak
           </label>
         </div>
+
+        <div id="save-panel">
+          Terdeteksi: <strong id="last-count">0</strong> — Simpan ke riwayat?
+          <div class="btn-group">
+            <button type="button" id="saveHistoryBtn">💾 Simpan</button>
+            <button type="button" id="skipHistoryBtn">Lewati</button>
+          </div>
+        </div>
+
+        <div class="history-section">
+          <div class="history-header">
+            <strong>Riwayat Hitungan</strong>
+            <button type="button" id="resetHistoryBtn">🧹 Reset</button>
+          </div>
+          <div id="history-summary">Belum ada perhitungan tersimpan</div>
+          <ul id="history-list"></ul>
+        </div>
       </div>
     </div>
 
     <script>
       // --- KONFIGURASI ---
-      const MODEL_PATH = "bestwiperv1.4.onnx";
+      const MODEL_PATH = "bestwiperv1.5.onnx";
       const INPUT_SIZE = 640;
       const CLASS_NAMES = ["Wiper"];
       const CLASS_COLORS = ["#ff4757"];
@@ -265,6 +351,9 @@
       const ORT_WASM_PATH = "ort/";
       const ORT_WASM_FILE = ORT_WASM_PATH + "ort-wasm.wasm";
       const ORT_WASM_SIMD_FILE = ORT_WASM_PATH + "ort-wasm-simd.wasm";
+      const HISTORY_KEY = "btechlens_wiper_history";
+      const MODEL_VERSION = "v1.5";
+      const HISTORY_LIMIT = 50;
       // -------------------
 
       const canvas = document.getElementById("canvas");
@@ -280,6 +369,7 @@
       let session = null;
       let mode = "idle";
       let lastBoxes = [];
+      let pendingSave = null;
 
       const preprocessCanvas = document.createElement("canvas");
       preprocessCanvas.width = INPUT_SIZE;
@@ -310,6 +400,102 @@
       }
 
       renderLegend();
+
+      function getHistory() {
+        try {
+          return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+        } catch {
+          return [];
+        }
+      }
+
+      function formatHistoryDate(iso) {
+        return new Date(iso).toLocaleString("id-ID", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      function buildHistoryEntry(boxes) {
+        const perClass = CLASS_NAMES.map(() => 0);
+        boxes.forEach((b) => perClass[b.classId]++);
+        return {
+          id: String(Date.now()),
+          date: new Date().toISOString(),
+          total: boxes.length,
+          perClass: Object.fromEntries(
+            CLASS_NAMES.map((name, i) => [name, perClass[i]]),
+          ),
+          model: MODEL_VERSION,
+        };
+      }
+
+      function renderHistory() {
+        const list = document.getElementById("history-list");
+        const summary = document.getElementById("history-summary");
+        const history = getHistory();
+
+        if (!history.length) {
+          summary.innerHTML = "Belum ada perhitungan tersimpan";
+          list.innerHTML = '<li class="history-empty">Belum ada riwayat</li>';
+          return;
+        }
+
+        const grandTotal = history.reduce((sum, h) => sum + (h.total || 0), 0);
+        const perClassTotals = CLASS_NAMES.map((name) => ({
+          name,
+          count: history.reduce((sum, h) => sum + (h.perClass?.[name] ?? 0), 0),
+        }));
+        const classSummary = perClassTotals
+          .map((c) => `${c.name}: <strong>${c.count}</strong>`)
+          .join(" · ");
+
+        summary.innerHTML =
+          `Jumlah scan: <strong>${history.length}</strong> · ` +
+          `Total akumulasi: <strong>${grandTotal}</strong><br>` +
+          classSummary;
+
+        list.innerHTML = history
+          .map((h, i) => {
+            const detail = CLASS_NAMES.map(
+              (n) => `${n}: ${h.perClass?.[n] ?? 0}`,
+            ).join(", ");
+            return `<li>#${history.length - i} · ${formatHistoryDate(
+              h.date,
+            )} — <strong>${h.total}</strong> (${detail})</li>`;
+          })
+          .join("");
+      }
+
+      function saveToHistory(entry) {
+        const history = getHistory();
+        history.unshift(entry);
+        localStorage.setItem(
+          HISTORY_KEY,
+          JSON.stringify(history.slice(0, HISTORY_LIMIT)),
+        );
+        renderHistory();
+      }
+
+      function resetHistory() {
+        if (!confirm("Hapus semua riwayat hitungan?")) return;
+        localStorage.removeItem(HISTORY_KEY);
+        renderHistory();
+      }
+
+      function showSavePanel(boxes) {
+        pendingSave = buildHistoryEntry(boxes);
+        document.getElementById("last-count").innerText = pendingSave.total;
+        document.getElementById("save-panel").style.display = "block";
+      }
+
+      function hideSavePanel() {
+        pendingSave = null;
+        document.getElementById("save-panel").style.display = "none";
+      }
 
       function shouldShowNumbers() {
         const selected = document.querySelector(
@@ -371,7 +557,7 @@
       // 1. Inisialisasi ONNX Runtime
       async function init() {
         try {
-          status.innerText = "⏳ Memuat Model v1.4...";
+          status.innerText = "⏳ Memuat Model v1.5...";
           configureOrt(false);
           session = await createSession();
           status.innerText = "✅ AI Siap";
@@ -492,6 +678,7 @@
 
       function processImageFile(file) {
         if (!file) return;
+        hideSavePanel();
         mode = "image";
         status.innerText = "⏳ Memproses Gambar...";
 
@@ -507,6 +694,7 @@
             canvas.height = imgDisp.naturalHeight;
             const boxes = await runInference(imgDisp);
             draw(boxes, imgDisp);
+            showSavePanel(boxes);
             status.innerText = "✅ Gambar Terdeteksi";
           };
         };
@@ -536,8 +724,22 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         status.innerText = "✅ AI Siap";
         lastBoxes = [];
+        hideSavePanel();
         updateCounts([]);
       };
+
+      document.getElementById("saveHistoryBtn").onclick = () => {
+        if (!pendingSave) return;
+        saveToHistory(pendingSave);
+        hideSavePanel();
+        status.innerText = "✅ Tersimpan ke riwayat";
+      };
+
+      document.getElementById("skipHistoryBtn").onclick = () => {
+        hideSavePanel();
+      };
+
+      document.getElementById("resetHistoryBtn").onclick = resetHistory;
 
       document
         .querySelectorAll('input[name="showNumbers"]')
@@ -573,7 +775,7 @@
         return inter / (a.w * a.h + b.w * b.h - inter);
       }
 
-      // Jalankan inisialisasi saat halaman dimuat
+      renderHistory();
       init();
     </script>
   </body>
