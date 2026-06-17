@@ -380,7 +380,7 @@
       const ORT_WASM_FILE = ORT_WASM_PATH + "ort-wasm.wasm";
       const ORT_WASM_SIMD_FILE = ORT_WASM_PATH + "ort-wasm-simd.wasm";
       const HISTORY_KEY = "btechlens_wiper_history";
-      const MODEL_VERSION = "v1.5";
+      const MODEL_VERSION = "v1.6";
       const HISTORY_LIMIT = 50;
       // -------------------
 
@@ -600,7 +600,7 @@
       // 1. Inisialisasi ONNX Runtime
       async function init() {
         try {
-          status.innerText = "⏳ Memuat Model v1.5...";
+          status.innerText = "⏳ Memuat Model v1.6...";
           configureOrt(false);
           session = await createSession();
           status.innerText = "✅ AI Siap";
