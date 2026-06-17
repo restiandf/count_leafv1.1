@@ -5,13 +5,13 @@ const ASSETS = [
   "./",
   "./index.html",
   "./wiper.html",
-  "./logo.png",
+  "./btech.png",
   "./manifest.webmanifest",
   "./ort/ort.min.js",
   "./ort/ort-wasm.wasm",
   "./ort/ort-wasm-simd.wasm",
-  "./besttutupdaunv1.1.onnx",
-  "./bestwiperv1.5.onnx",
+  "./besttutupdaunv1.2.onnx",
+  "./bestwiperv1.6.onnx",
 ];
 
 self.addEventListener("install", (event) => {
