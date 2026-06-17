@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BTechLens - Wiper</title>
-    <link rel="icon" href="logo.png" type="image/png" />
+    <link rel="icon" href="btech.png" type="image/png" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="logo.png" />
+    <link rel="apple-touch-icon" href="btech.png" />
     <meta name="theme-color" content="#ff4757" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="BTechLens" />
@@ -65,6 +65,7 @@
         height: 50px;
         object-fit: contain;
         flex-shrink: 0;
+        border-radius: 50%;
       }
       canvas {
         width: 100%;
@@ -292,7 +293,7 @@
   <body>
     <div class="container">
       <h2>
-        <img class="logo" src="logo.png" alt="BTechLens" />
+        <img class="logo" src="btech.png" alt="BTechLens" />
         BTechLens
       </h2>
 
@@ -302,7 +303,7 @@
       </div>
 
       <div class="status-bar">
-        <span id="status">⏳ Memuat Model v1.5...</span>
+        <span id="status">⏳ Memuat Model v1.6...</span>
         <span>Total: <span id="count-badge">0</span></span>
       </div>
 
@@ -370,7 +371,7 @@
 
     <script>
       // --- KONFIGURASI ---
-      const MODEL_PATH = "bestwiperv1.5.onnx";
+      const MODEL_PATH = "bestwiperv1.6.onnx";
       const INPUT_SIZE = 640;
       const CLASS_NAMES = ["Wiper"];
       const CLASS_COLORS = ["#ff4757"];
@@ -491,10 +492,14 @@
               (n) => `${n}: ${h.perClass?.[n] ?? 0}`,
             ).join(", ");
             return `<li>
-              <span class="history-item-text">#${history.length - i} · ${formatHistoryDate(
-              h.date,
-            )} — <strong>${h.total}</strong> (${detail})</span>
-              <button type="button" class="history-delete-btn" data-id="${h.id}" title="Hapus scan ini">✕</button>
+              <span class="history-item-text">#${
+                history.length - i
+              } · ${formatHistoryDate(h.date)} — <strong>${
+              h.total
+            }</strong> (${detail})</span>
+              <button type="button" class="history-delete-btn" data-id="${
+                h.id
+              }" title="Hapus scan ini">✕</button>
             </li>`;
           })
           .join("");
