@@ -349,6 +349,10 @@
             <input type="radio" name="showNumbers" value="off" />
             Tidak
           </label>
+          <label>
+            <input type="radio" name="showNumbers" value="simple" />
+            Simpel
+          </label>
         </div>
 
         <div id="save-panel">
@@ -541,11 +545,11 @@
         document.getElementById("save-panel").style.display = "none";
       }
 
-      function shouldShowNumbers() {
+      function getNumberDisplayMode() {
         const selected = document.querySelector(
           'input[name="showNumbers"]:checked',
         );
-        return selected?.value === "on";
+        return selected?.value || "on";
       }
 
       function formatOrtError(e) {
@@ -690,30 +694,54 @@
 
         const fontSize = Math.max(12, canvas.width / 50);
         ctx.font = `bold ${fontSize}px sans-serif`;
-        ctx.textBaseline = "top";
 
+        const displayMode = getNumberDisplayMode();
         // Penomoran label kotak mulai dari 1 per kelas (bukan urutan global).
         const perClassCounter = CLASS_NAMES.map(() => 0);
 
         boxes.forEach((b) => {
           const color = CLASS_COLORS[b.classId] || CLASS_COLORS[0];
-          ctx.strokeStyle = color;
-          ctx.fillStyle = color;
+          const cls = Number.isFinite(b.classId) ? b.classId : 0;
+          const safeCls = cls >= 0 && cls < perClassCounter.length ? cls : 0;
 
-          ctx.strokeRect(b.x, b.y, b.w, b.h);
+          if (displayMode !== "simple") {
+            ctx.strokeStyle = color;
+            ctx.strokeRect(b.x, b.y, b.w, b.h);
+          }
 
-          if (shouldShowNumbers()) {
-            const cls = Number.isFinite(b.classId) ? b.classId : 0;
-            const safeCls = cls >= 0 && cls < perClassCounter.length ? cls : 0;
-
+          if (displayMode === "on") {
             const txt = (++perClassCounter[safeCls]).toString();
             const txtW = ctx.measureText(txt).width;
             const pad = fontSize * 0.2;
 
+            ctx.textBaseline = "top";
+            ctx.fillStyle = color;
             ctx.fillRect(b.x, b.y, txtW + pad * 2, fontSize + pad * 2);
-
             ctx.fillStyle = "#ffffff";
             ctx.fillText(txt, b.x + pad, b.y + pad);
+          } else if (displayMode === "simple") {
+            const txt = (++perClassCounter[safeCls]).toString();
+            const txtW = ctx.measureText(txt).width;
+            const padX = fontSize * 0.45;
+            const padY = fontSize * 0.3;
+            const bw = txtW + padX * 2;
+            const bh = fontSize + padY * 2;
+            const cx = b.x + b.w / 2;
+            const cy = b.y + b.h / 2;
+            const rx = cx - bw / 2;
+            const ry = cy - bh / 2;
+            const radius = Math.min(bh / 2, fontSize * 0.45);
+
+            ctx.beginPath();
+            ctx.roundRect(rx, ry, bw, bh, radius);
+            ctx.fillStyle = "#ffffff";
+            ctx.fill();
+
+            ctx.textBaseline = "middle";
+            ctx.textAlign = "center";
+            ctx.fillStyle = color;
+            ctx.fillText(txt, cx, cy);
+            ctx.textAlign = "start";
           }
         });
 
