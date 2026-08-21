@@ -1,4 +1,4 @@
-const SW_VERSION = "v2";
+const SW_VERSION = "v3";
 const CACHE_NAME = `btechlens-${SW_VERSION}`;
 
 const ASSETS = [
@@ -13,7 +13,7 @@ const ASSETS = [
   "./ort/ort-wasm-simd.wasm",
   "./besttutupdaunv1.2.onnx",
   "./bestwiperv1.6.onnx",
-  "./bestqc_v1.0.onnx",
+  "./bestqc_v1.1.onnx",
 ];
 
 self.addEventListener("install", (event) => {

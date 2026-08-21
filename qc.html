@@ -304,7 +304,7 @@
       </div>
 
       <div class="status-bar">
-        <span id="status">⏳ Memuat Model v1.0...</span>
+        <span id="status">⏳ Memuat Model v1.1...</span>
         <span>Total: <span id="count-badge">0</span></span>
       </div>
 
@@ -372,16 +372,16 @@
 
     <script>
       // --- KONFIGURASI ---
-      const MODEL_PATH = "bestqc_v1.0.onnx";
+      const MODEL_PATH = "bestqc_v1.1.onnx";
       const INPUT_SIZE = 640;
-      const CLASS_NAMES = ["QC"];
-      const CLASS_COLORS = ["#3b82f6"];
+      const CLASS_NAMES = ["Bawah", "Atas"];
+      const CLASS_COLORS = ["#3b82f6", "#f59e0b"];
       const DEFAULT_THRESHOLD = 0.5;
       const ORT_WASM_PATH = "ort/";
       const ORT_WASM_FILE = ORT_WASM_PATH + "ort-wasm.wasm";
       const ORT_WASM_SIMD_FILE = ORT_WASM_PATH + "ort-wasm-simd.wasm";
       const HISTORY_KEY = "btechlens_qc_history";
-      const MODEL_VERSION = "v1.0";
+      const MODEL_VERSION = "v1.1";
       const HISTORY_LIMIT = 50;
       // -------------------
 
@@ -601,7 +601,7 @@
       // 1. Inisialisasi ONNX Runtime
       async function init() {
         try {
-          status.innerText = "⏳ Memuat Model v1.0...";
+          status.innerText = "⏳ Memuat Model v1.1...";
           configureOrt(false);
           session = await createSession();
           status.innerText = "✅ AI Siap";
