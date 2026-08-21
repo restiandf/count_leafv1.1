@@ -1,7 +1,7 @@
 {
   "name": "BTechLens",
   "short_name": "BTechLens",
-  "description": "Deteksi & hitung Tutup Daun dan Wiper",
+  "description": "Deteksi & hitung Tutup Daun, Wiper, dan QC",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

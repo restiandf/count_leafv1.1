@@ -1,10 +1,11 @@
-const SW_VERSION = "v1";
+const SW_VERSION = "v2";
 const CACHE_NAME = `btechlens-${SW_VERSION}`;
 
 const ASSETS = [
   "./",
   "./index.html",
   "./wiper.html",
+  "./qc.html",
   "./btech.png",
   "./manifest.webmanifest",
   "./ort/ort.min.js",
@@ -12,6 +13,7 @@ const ASSETS = [
   "./ort/ort-wasm-simd.wasm",
   "./besttutupdaunv1.2.onnx",
   "./bestwiperv1.6.onnx",
+  "./bestqc_v1.0.onnx",
 ];
 
 self.addEventListener("install", (event) => {
