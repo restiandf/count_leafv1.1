@@ -690,6 +690,57 @@
         return nms(boxes, 0.45);
       }
 
+      function sortBoxesForNumbering(boxes) {
+        const grouped = GROUP_NAMES.map(() => []);
+        boxes.forEach((box) => {
+          grouped[groupId(box.classId)].push(box);
+        });
+
+        const numbered = new Map();
+
+        grouped.forEach((groupBoxes) => {
+          if (!groupBoxes.length) return;
+
+          const sortedByY = [...groupBoxes].sort((a, b) => {
+            const ay = a.y + a.h / 2;
+            const by = b.y + b.h / 2;
+            if (Math.abs(ay - by) > 1) return ay - by;
+            return a.x - b.x;
+          });
+
+          const heights = sortedByY.map((b) => b.h).sort((a, b) => a - b);
+          const medianHeight = heights[Math.floor(heights.length / 2)] || 0;
+          const rowThreshold = Math.max(12, medianHeight * 0.6);
+          const rows = [];
+
+          sortedByY.forEach((box) => {
+            const cy = box.y + box.h / 2;
+            const row = rows.find((item) => Math.abs(item.centerY - cy) <= rowThreshold);
+            if (row) {
+              row.boxes.push(box);
+              row.centerY =
+                row.boxes.reduce((sum, current) => sum + current.y + current.h / 2, 0) /
+                row.boxes.length;
+            } else {
+              rows.push({ centerY: cy, boxes: [box] });
+            }
+          });
+
+          let counter = 1;
+          rows
+            .sort((a, b) => a.centerY - b.centerY)
+            .forEach((row) => {
+              row.boxes
+                .sort((a, b) => (a.x + a.w / 2) - (b.x + b.w / 2))
+                .forEach((box) => {
+                  numbered.set(box, counter++);
+                });
+            });
+        });
+
+        return numbered;
+      }
+
       function draw(boxes, source) {
         lastBoxes = boxes;
         ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
@@ -701,11 +752,12 @@
 
         const displayMode = getNumberDisplayMode();
         // Penomoran per grup (Bawah / Atas), bukan per class model.
-        const perGroupCounter = GROUP_NAMES.map(() => 0);
+        const numbersByBox = sortBoxesForNumbering(boxes);
 
         boxes.forEach((b) => {
           const gid = groupId(b.classId);
           const color = GROUP_COLORS[gid] || GROUP_COLORS[0];
+          const txt = (numbersByBox.get(b) || 0).toString();
 
           if (displayMode !== "simple") {
             ctx.strokeStyle = color;
@@ -713,7 +765,6 @@
           }
 
           if (displayMode === "on") {
-            const txt = (++perGroupCounter[gid]).toString();
             const txtW = ctx.measureText(txt).width;
             const pad = fontSize * 0.2;
 
@@ -723,7 +774,6 @@
             ctx.fillStyle = "#ffffff";
             ctx.fillText(txt, b.x + pad, b.y + pad);
           } else if (displayMode === "simple") {
-            const txt = (++perGroupCounter[gid]).toString();
             const txtW = ctx.measureText(txt).width;
             const padX = fontSize * 0.45;
             const padY = fontSize * 0.3;
