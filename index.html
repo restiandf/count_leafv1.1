@@ -5,11 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BTechLens - Tutup Daun</title>
     <link rel="icon" href="btech.png" type="image/png" />
-    <link rel="manifest" href="manifest.webmanifest" />
     <link rel="apple-touch-icon" href="btech.png" />
     <meta name="theme-color" content="#ff4757" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="BTechLens" />
     <script src="ort/ort.min.js"></script>
     <style>
       :root {
@@ -828,11 +825,17 @@
       renderHistory();
       init();
 
+      // Cleanup PWA lama: unregister SW + hapus cache (sekali jalan)
       if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker
-            .register("./service-worker.js")
-            .catch((err) => console.warn("Service worker gagal:", err));
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+          regs.forEach((r) => r.unregister());
+        });
+      }
+      if ("caches" in window) {
+        caches.keys().then((keys) => {
+          keys
+            .filter((k) => k.startsWith("btechlens-"))
+            .forEach((k) => caches.delete(k));
         });
       }
     </script>

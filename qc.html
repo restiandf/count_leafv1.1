@@ -5,11 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BTechLens - QC</title>
     <link rel="icon" href="btech.png" type="image/png" />
-    <link rel="manifest" href="manifest.webmanifest" />
     <link rel="apple-touch-icon" href="btech.png" />
     <meta name="theme-color" content="#ff4757" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="BTechLens" />
     <script src="ort/ort.min.js"></script>
     <style>
       :root {
@@ -304,7 +301,7 @@
       </div>
 
       <div class="status-bar">
-        <span id="status">⏳ Memuat Model v1.2...</span>
+        <span id="status">⏳ Memuat Model v1.3...</span>
         <span>Total: <span id="count-badge">0</span></span>
       </div>
 
@@ -376,16 +373,18 @@
 
     <script>
       // --- KONFIGURASI ---
-      const MODEL_PATH = "bestqc_v1.2.onnx";
+      const MODEL_PATH = "bestqc_v1.3.onnx";
       const INPUT_SIZE = 640;
-      const CLASS_NAMES = ["Bawah", "Atas"];
-      const CLASS_COLORS = ["#3b82f6", "#f59e0b"];
+      const MODEL_CLASS_NAMES = ["Toner-Bottom", "Tube-Bottom", "Tube-Top"];
+      const GROUP_NAMES = ["Bawah", "Atas"];
+      const GROUP_COLORS = ["#3b82f6", "#f59e0b"];
+      const CLASS_TO_GROUP = [0, 0, 1];
       const DEFAULT_THRESHOLD = 0.5;
       const ORT_WASM_PATH = "ort/";
       const ORT_WASM_FILE = ORT_WASM_PATH + "ort-wasm.wasm";
       const ORT_WASM_SIMD_FILE = ORT_WASM_PATH + "ort-wasm-simd.wasm";
       const HISTORY_KEY = "btechlens_qc_history";
-      const MODEL_VERSION = "v1.2";
+      const MODEL_VERSION = "v1.3";
       const HISTORY_LIMIT = 50;
       // -------------------
 
@@ -412,21 +411,26 @@
       });
       const inputBuffer = new Float32Array(3 * INPUT_SIZE * INPUT_SIZE);
 
+      function groupId(classId) {
+        const g = CLASS_TO_GROUP[classId];
+        return Number.isFinite(g) ? g : 0;
+      }
+
       function renderLegend() {
-        legendEl.innerHTML = CLASS_NAMES.map(
+        legendEl.innerHTML = GROUP_NAMES.map(
           (name, i) =>
             `<span class="legend-item">
-              <span class="legend-dot" style="background:${CLASS_COLORS[i]}"></span>
+              <span class="legend-dot" style="background:${GROUP_COLORS[i]}"></span>
               ${name}: <span class="class-count" id="count-class-${i}">0</span>
             </span>`,
         ).join("");
       }
 
       function updateCounts(boxes) {
-        const perClass = CLASS_NAMES.map(() => 0);
-        boxes.forEach((b) => perClass[b.classId]++);
+        const perGroup = GROUP_NAMES.map(() => 0);
+        boxes.forEach((b) => perGroup[groupId(b.classId)]++);
         countBadge.innerText = boxes.length;
-        perClass.forEach((n, i) => {
+        perGroup.forEach((n, i) => {
           const el = document.getElementById(`count-class-${i}`);
           if (el) el.innerText = n;
         });
@@ -453,14 +457,14 @@
       }
 
       function buildHistoryEntry(boxes) {
-        const perClass = CLASS_NAMES.map(() => 0);
-        boxes.forEach((b) => perClass[b.classId]++);
+        const perGroup = GROUP_NAMES.map(() => 0);
+        boxes.forEach((b) => perGroup[groupId(b.classId)]++);
         return {
           id: String(Date.now()),
           date: new Date().toISOString(),
           total: boxes.length,
           perClass: Object.fromEntries(
-            CLASS_NAMES.map((name, i) => [name, perClass[i]]),
+            GROUP_NAMES.map((name, i) => [name, perGroup[i]]),
           ),
           model: MODEL_VERSION,
         };
@@ -478,7 +482,7 @@
         }
 
         const grandTotal = history.reduce((sum, h) => sum + (h.total || 0), 0);
-        const perClassTotals = CLASS_NAMES.map((name) => ({
+        const perClassTotals = GROUP_NAMES.map((name) => ({
           name,
           count: history.reduce((sum, h) => sum + (h.perClass?.[name] ?? 0), 0),
         }));
@@ -493,7 +497,7 @@
 
         list.innerHTML = history
           .map((h, i) => {
-            const detail = CLASS_NAMES.map(
+            const detail = GROUP_NAMES.map(
               (n) => `${n}: ${h.perClass?.[n] ?? 0}`,
             ).join(", ");
             return `<li>
@@ -605,7 +609,7 @@
       // 1. Inisialisasi ONNX Runtime
       async function init() {
         try {
-          status.innerText = "⏳ Memuat Model v1.2...";
+          status.innerText = "⏳ Memuat Model v1.3...";
           configureOrt(false);
           session = await createSession();
           status.innerText = "✅ AI Siap";
@@ -696,13 +700,12 @@
         ctx.font = `bold ${fontSize}px sans-serif`;
 
         const displayMode = getNumberDisplayMode();
-        // Penomoran label kotak mulai dari 1 per kelas (bukan urutan global).
-        const perClassCounter = CLASS_NAMES.map(() => 0);
+        // Penomoran per grup (Bawah / Atas), bukan per class model.
+        const perGroupCounter = GROUP_NAMES.map(() => 0);
 
         boxes.forEach((b) => {
-          const color = CLASS_COLORS[b.classId] || CLASS_COLORS[0];
-          const cls = Number.isFinite(b.classId) ? b.classId : 0;
-          const safeCls = cls >= 0 && cls < perClassCounter.length ? cls : 0;
+          const gid = groupId(b.classId);
+          const color = GROUP_COLORS[gid] || GROUP_COLORS[0];
 
           if (displayMode !== "simple") {
             ctx.strokeStyle = color;
@@ -710,7 +713,7 @@
           }
 
           if (displayMode === "on") {
-            const txt = (++perClassCounter[safeCls]).toString();
+            const txt = (++perGroupCounter[gid]).toString();
             const txtW = ctx.measureText(txt).width;
             const pad = fontSize * 0.2;
 
@@ -720,7 +723,7 @@
             ctx.fillStyle = "#ffffff";
             ctx.fillText(txt, b.x + pad, b.y + pad);
           } else if (displayMode === "simple") {
-            const txt = (++perClassCounter[safeCls]).toString();
+            const txt = (++perGroupCounter[gid]).toString();
             const txtW = ctx.measureText(txt).width;
             const padX = fontSize * 0.45;
             const padY = fontSize * 0.3;
@@ -856,11 +859,17 @@
       renderHistory();
       init();
 
+      // Cleanup PWA lama: unregister SW + hapus cache (sekali jalan)
       if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker
-            .register("./service-worker.js")
-            .catch((err) => console.warn("Service worker gagal:", err));
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+          regs.forEach((r) => r.unregister());
+        });
+      }
+      if ("caches" in window) {
+        caches.keys().then((keys) => {
+          keys
+            .filter((k) => k.startsWith("btechlens-"))
+            .forEach((k) => caches.delete(k));
         });
       }
     </script>
